@@ -1,0 +1,3 @@
+[submodule "elm-console"]
+	path = elm-console
+	url = git@github.com:boxdot/elm-console.git
