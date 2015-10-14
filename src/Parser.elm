@@ -118,15 +118,12 @@ compile : List Element -> String
 compile =
   compileChildren defaultIndent
   >> String.join "\n"
-  >> (++) header
-  >> flip (++) "\n"
+  >> wrap header "\n"
 
 
 compileElement : Int -> Element -> String
 compileElement level element =
   let
-    spaces = String.repeat level " "
-
     compileCase element =
       case element of
         Tag tag -> compileTag level tag
@@ -183,7 +180,11 @@ compileChildren level elements =
     firstNonComment = findFirstNonComment indexedElements
     prepend index element =
       if | index == 0 -> spaces ++ "[ "
-         | index <= firstNonComment -> spaces ++ "  "
+         | index <= firstNonComment ->
+          -- TODO: make simpler
+          case element of
+            Comment _ -> ""
+            _ -> spaces ++ "  "
          | otherwise ->
           case element of
             Comment _ -> ""
@@ -193,7 +194,7 @@ compileChildren level elements =
       prepend index element
       ++
         case element of
-          Comment _ -> compileElement level element
+          Comment comment -> String.join "\n" <| compileComment comment
           _ -> compileElement level element |> String.dropLeft level
   in
     if List.isEmpty elements
@@ -220,78 +221,8 @@ compileAttr attr =
     Nothing -> attr.key
     Just value -> attr.key ++ " \"" ++ value ++ "\""
 
---compileTag : Int -> TagRecord -> List String
---compileTag level tag =
---  let
---    lines =
---      if | List.isEmpty tag.attrs && List.isEmpty tag.children ->
---          [ "[ " ++ tag.tag ++ " [] [] ]" ]
---         | List.isEmpty tag.attrs ->
---          [ "[ " ++ tag.tag ++ " []" ] ++
---          compileChildren (level + defaultIndent) tag.children ++
---          [ "]" ]
---         | otherwise ->
---          [ "[ " ++ tag.tag ] ++
---          compileAttrs tag.attrs ++
---          compileChildren (level + defaultIndent) tag.children ++
---          [ "]" ]
 
---    indentString = String.repeat level " "
---  in
---    lines
---    |> List.map ((++) indentString)
-
-
---compileComment : String -> List String
---compileComment =
---  String.lines
---  >> List.map ((++) "--")
-
-
---compileText : Int -> String -> List String
---compileText level text =
---  String.lines text
---  |> List.map (wrap "\"" "\"")
---  |> indent level
-
-
---compileAttrs attrs =
---  let
---    attrList = List.map compileAttr attrs
---    head = "[ " ++ (Maybe.withDefault "" (List.head attrList))
---    tail =
---      List.map ((++) (spaces ++ ", "))
---        (Maybe.withDefault [] (List.tail attrList))
---  in
---    if List.isEmpty attrs
---      then [ spaces ++ "[]" ]
---      else [ spaces ++ head ] ++ tail ++ [ spaces ++ "]" ]
-
-
---compileChildren level =
---  formatList (compileElement level) >> indent level
-
-
---compileAttr : Attribute -> String
---compileAttr attr =
---  case attr.value of
---    Just value -> attr.key ++ " \"" ++ value ++ "\""
---    Nothing -> attr.key
-
-
---formatList : (a -> String) -> List a -> List String
---formatList f ls =
---  let
---    mapped = List.map f ls
---    head = List.head mapped |> Maybe.withDefault ""
---    tail = List.tail mapped
---      |> Maybe.withDefault []
---      |> List.map ((++) ", ")
---  in
---    if List.isEmpty ls
---      then [ "[]" ]
---      else [ "[ " ++ head ] ++ tail ++ [ "]" ]
-
+-- Helper
 
 indent : Int -> List String -> List String
 indent level =

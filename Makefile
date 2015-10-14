@@ -1,3 +1,4 @@
+SHELL = bash
 CONSOLE_ELM = $(shell find elm-console/ -type f -name '*.elm')
 CONSOLE_JS = $(shell find elm-console/ -type f -name '*.js')
 
@@ -12,6 +13,7 @@ init:
 build:
 	mkdir -p $@
 
+
 build/main.js: src/Main.elm src/Parser.elm build/parser.js build \
 		$(CONSOLE_JS) \
 		$(CONSOLE_ELM)
@@ -25,7 +27,13 @@ build/parser.js: grammar/elmit.jison grammar/append.js build
 	cat grammar/append.js >> $@
 
 
-.PHONY: all clean
+test: build/elmit.js
+	@test "`cat test/simple.html | node build/elmit.js`" \
+		= "`cat test/simple.elm`" && echo -n . || echo "Failed: simple.html"
+	@echo
+
+
+.PHONY: all clean test
 
 clean:
 	rm -rf build src/Native/Parser.js

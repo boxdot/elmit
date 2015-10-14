@@ -21,12 +21,15 @@ readStdin =
   in io ""
 
 
+doParse : String -> IO ()
+doParse input =
+  case Parser.parse input of
+    Ok parsed -> putStrLn (Parser.compile parsed)
+    Err err -> putStrLn err
+
+
 port runner : Signal (Task x ())
 port runner = Console.run <|
   readStdin
-  >>= (\input ->
-    case Parser.parse input of
-      Ok parsed -> putStrLn (Parser.compile parsed)
-      Err err -> putStrLn err
-  )
+  >>= doParse
   >>> exit 0
