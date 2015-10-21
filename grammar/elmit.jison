@@ -9,9 +9,17 @@ namechar    {digit}|{letter}|"."|"-"|"_"|":"
 name        ({letter}|"_"|":"){namechar}*
 elmname     ({letter}|"_")({letter}|{digit}|"_")*
 
+LEFT_STRIP    "~"
+RIGHT_STRIP   "~"
+
+LOOKAHEAD           [=~}\s\/.)|]
+LITERAL_LOOKAHEAD   [~}\s)]
+
+ID    [^\s!"#%-,\.\/;->@\[-\^`\{-~]+/{LOOKAHEAD}
+
 %%
 
-<INITIAL,tag>\s+    /* skip whitespace */
+<INITIAL,tag,hb>\s+    /* skip whitespace */
 <<EOF>>             return 'EOF';
 
 /* Strip Comments */
@@ -29,12 +37,48 @@ elmname     ({letter}|"_")({letter}|{digit}|"_")*
 <arg>{name}         { this.popState(); return 'VALUE' };
 <arg>"\""|"'"       { this.begin('argval'); return 'QUOT'; }
 <argval>"\""|"'"    { this.popState(); this.popState(); return 'QUOT'; }
-<argval>[^\"']+       return 'VALUE';
+<argval>[^\"']+     { return 'VALUE';}
 
-<INITIAL,tag>"{{"   { this.begin('hb'); return 'OPEN'; }
-<hb>"}}"            { this.popState(); return 'CLOSE' }
-<hb>{elmname}       { return 'ELMNAME'; }
-<hb>"."             { return "."; }
+// handlebars lexer
+
+[^\x00]*?/("{{")                 this.begin('hb');
+
+<hb>"{{"{LEFT_STRIP}?">"         return 'OPEN_PARTIAL';
+<hb>"{{"{LEFT_STRIP}?"#>"        return 'OPEN_PARTIAL_BLOCK';
+<hb>"{{"{LEFT_STRIP}?"#""*"?     return 'OPEN_BLOCK';
+<hb>"{{"{LEFT_STRIP}?"/"         return 'OPEN_ENDBLOCK';
+<hb>"{{"{LEFT_STRIP}?"^"\s*{RIGHT_STRIP}?"}}"        this.popState(); return 'INVERSE';
+<hb>"{{"{LEFT_STRIP}?\s*"else"\s*{RIGHT_STRIP}?"}}"  this.popState(); return 'INVERSE';
+<hb>"{{"{LEFT_STRIP}?"^"         return 'OPEN_INVERSE';
+<hb>"{{"{LEFT_STRIP}?\s*"else"   return 'OPEN_INVERSE_CHAIN';
+<hb>"{{"{LEFT_STRIP}?"{"         return 'OPEN_UNESCAPED';
+<hb>"{{"{LEFT_STRIP}?"&"         return 'OPEN';
+<hb>"{{"{LEFT_STRIP}?"*"?        return 'OPEN';
+
+<hb>"="                          return 'EQUALS';
+<hb>".."                         return 'ID';
+<hb>"."/{LOOKAHEAD}              return 'ID';
+<hb>[\/.]                        return 'SEP';
+<hb>\s+                          // ignore whitespace
+<hb>"}"{RIGHT_STRIP}?"}}"        this.popState(); return 'CLOSE_UNESCAPED';
+<hb>{RIGHT_STRIP}?"}}"           this.popState(); return 'CLOSE';
+<hb>'"'("\\"["]|[^"])*'"'        return 'STRING';
+<hb>"'"("\\"[']|[^'])*"'"        return 'STRING';
+<hb>"@"                          return 'DATA';
+<hb>"true"/{LITERAL_LOOKAHEAD}   return 'BOOLEAN';
+<hb>"false"/{LITERAL_LOOKAHEAD}  return 'BOOLEAN';
+<hb>"undefined"/{LITERAL_LOOKAHEAD} return 'UNDEFINED';
+<hb>"null"/{LITERAL_LOOKAHEAD}   return 'NULL';
+<hb>\-?[0-9]+(?:\.[0-9]+)?/{LITERAL_LOOKAHEAD} return 'NUMBER';
+<hb>"as"\s+"|"                   return 'OPEN_BLOCK_PARAMS';
+<hb>"|"                          return 'CLOSE_BLOCK_PARAMS';
+
+<hb>{ID}                         return 'ID';
+
+<hb>'['('\\]'|[^\]])*']'         return 'ID';
+<hb>.                            return 'INVALID';
+
+<INITIAL,hb><<EOF>>              return 'EOF';
 
 [^<>{]+              return 'TEXT';
 
@@ -51,9 +95,9 @@ root
 
 content
     : tag -> $1
-    | handlebars -> { hb: $1}
     | comment -> $1
     | TEXT -> { text: $1.replace(/^\s+|\s+$/g, "") }
+    | statement -> { hb: $1 }
     ;
 
 comment
@@ -94,6 +138,148 @@ attr
     ;
 
 // handlebars
-handlebars
-    : OPEN ELMNAME ('.' ELMNAME)* CLOSE -> { name: $2, tail: $1 + "." + $3 }
-    ;
+
+program
+  : content* -> $1
+  ;
+
+statement
+  : mustache -> $1
+  | block -> $1
+  | rawBlock -> $1
+  | partial -> $1
+  | partialBlock -> $1
+  | COMMENT {
+    $$ = {
+      type: 'CommentStatement',
+      value: $1,
+      loc: @$
+    };
+  };
+
+//rawBlock
+//  : openRawBlock content+ END_RAW_BLOCK
+//  ;
+
+openRawBlock
+  : OPEN_RAW_BLOCK helperName param* hash? CLOSE_RAW_BLOCK -> { path: $2, params: $3, hash: $4 }
+  ;
+
+block
+  : openBlock program inverseChain? closeBlock
+    { $$.children = $2; }
+  | openInverse program inverseAndProgram? closeBlock -> $1
+  ;
+
+openBlock
+  : OPEN_BLOCK helperName param* hash? blockParams? CLOSE
+    -> { open: $1, path: $2, params: $3, hash: $4, blockParams: $5 }
+  ;
+
+openInverse
+  : OPEN_INVERSE helperName param* hash? blockParams? CLOSE
+    -> { path: $2, params: $3, hash: $4, blockParams: $5 }
+  ;
+
+openInverseChain
+  : OPEN_INVERSE_CHAIN helperName param* hash? blockParams? CLOSE
+    -> { path: $2, params: $3, hash: $4, blockParams: $5 }
+  ;
+
+inverseAndProgram
+  : INVERSE program -> { program: $2 }
+  ;
+
+inverseChain
+  : openInverseChain program inverseChain?
+  | inverseAndProgram -> $1
+  ;
+
+closeBlock
+  : OPEN_ENDBLOCK helperName CLOSE -> {path: $2}
+  ;
+
+mustache
+  // Parsing out the '&' escape token at AST level saves ~500 bytes after min due to the removal of one parser node.
+  // This also allows for handler unification as all mustache node instances can utilize the same handler
+  : OPEN helperName param* hash? CLOSE
+    -> { type: 'mustache', path: $2, params: $3, hash: $4 }
+  | OPEN_UNESCAPED helperName param* hash? CLOSE_UNESCAPED -> yy.prepareMustache($2, $3, $4, $1, @$)
+  ;
+
+partial
+  : OPEN_PARTIAL partialName param* hash? CLOSE {
+    $$ = {
+      type: 'PartialStatement',
+      name: $2,
+      params: $3,
+      hash: $4,
+      indent: '',
+      loc: @$
+    };
+  }
+  ;
+partialBlock
+  : openPartialBlock program closeBlock -> yy.preparePartialBlock($1, $2, $3, @$)
+  ;
+openPartialBlock
+  : OPEN_PARTIAL_BLOCK partialName param* hash? CLOSE -> { path: $2, params: $3, hash: $4 }
+  ;
+
+param
+  : helperName -> $1
+  | sexpr -> $1
+  ;
+
+sexpr
+  : OPEN_SEXPR helperName param* hash? CLOSE_SEXPR {
+    $$ = {
+      type: 'SubExpression',
+      path: $2,
+      params: $3,
+      hash: $4,
+      loc: yy.locInfo(@$)
+    };
+  };
+
+hash
+  : hashSegment+ -> {type: 'Hash', pairs: $1, loc: @$}
+  ;
+
+hashSegment
+  : ID EQUALS param -> {type: 'HashPair', value: $3, loc: @$}
+  ;
+
+blockParams
+  : OPEN_BLOCK_PARAMS ID+ CLOSE_BLOCK_PARAMS -> $2
+  ;
+
+helperName
+  : path -> $1
+  | dataName -> $1
+  | STRING -> {type: 'StringLiteral', value: $1, original: $1, loc: yy.locInfo(@$)}
+  | NUMBER -> {type: 'NumberLiteral', value: Number($1), original: Number($1), loc: yy.locInfo(@$)}
+  | BOOLEAN -> {type: 'BooleanLiteral', value: $1 === 'true', original: $1 === 'true', loc: yy.locInfo(@$)}
+  | UNDEFINED -> {type: 'UndefinedLiteral', original: undefined, value: undefined, loc: yy.locInfo(@$)}
+  | NULL -> {type: 'NullLiteral', original: null, value: null, loc: yy.locInfo(@$)}
+  ;
+
+partialName
+  : helperName -> $1
+  | sexpr -> $1
+  ;
+
+dataName
+  : DATA pathSegments
+  ;
+
+path
+  : pathSegments
+  ;
+
+pathSegments
+  : pathSegments SEP ID {
+      $1.push({part: $3, original: $3, separator: $2 }); $$ = $1;
+    }
+  | ID -> [{part: $1, original: $1}]
+  ;

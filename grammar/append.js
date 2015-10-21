@@ -9,7 +9,9 @@ Elm.Native.Parser.make = function(localRuntime) {
 
     function parse(input) {
         try {
-            return Result.Ok(JSON.stringify(parser.parse(input)));
+            var parsed = JSON.stringify(parser.parse(input), 0, 2);
+            console.log(parsed);
+            return Result.Ok(parsed);
         } catch (err) {
             return Result.Err(err.toString());
         }
