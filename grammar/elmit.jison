@@ -90,7 +90,7 @@ ID    [^\s!"#%-,\.\/;->@\[-\^`\{-~]+/{LOOKAHEAD}
 
 root
     : content* EOF
-        { return $1; }
+        { return yy.List($1); }
     ;
 
 content
@@ -101,23 +101,28 @@ content
     ;
 
 comment
-    : OPENCOM BODYCOM? CLOSECOM -> { comment: $2 || "" }
+    : OPENCOM BODYCOM? CLOSECOM -> yy.Comment($2 ? $2 : "")
     ;
 
 tag
     : emptyTag -> $1
     | openTag (content*) closeTag
-        { $$ = $1; $1.children = $2; $1.closeTag = $3;
+      {
+        if ($1.tag != $3) {
+          throw Error(
+            "Non matching open and close tag: " + $1.tag + ", " + $3);
         }
+        $$ = yy.Tag($1.tag, $1.attrs, yy.Nil)
+      }
     ;
 
 emptyTag
-    : OPENBTAG NAME CLOSEBTAG -> { tag: $2, attrs: [] }
-    | OPENBTAG NAME attrs CLOSEBTAG -> { tag: $2, attrs: $3 }
+    : OPENBTAG NAME CLOSEBTAG -> yy.Tag($2, yy.Nil, yy.Nil)
+    | OPENBTAG NAME attrs CLOSEBTAG -> yy.Tag($2, $3, yy.Nil)
     ;
 
 openTag
-    : OPENBTAG NAME CLOSETAG -> { tag: $2, attrs: [] }
+    : OPENBTAG NAME CLOSETAG -> { tag: $2, attrs: yy.Nil }
     | OPENBTAG NAME attrs CLOSETAG -> { tag: $2, attrs: $3 }
     ;
 
@@ -126,15 +131,14 @@ closeTag
     ;
 
 attrs
-    : attr -> [$1]
-    | attrs attr
-        { $$ = $1; $1.push($2); }
+    : attr -> yy.Cons($1, yy.Nil)
+    | attr attrs -> yy.Cons($1, $2)
     ;
 
 attr
-    : NAME
-    | NAME EQ VALUE -> { key: $1, value: $3 }
-    | NAME EQ QUOT VALUE QUOT -> { key: $1, value: $4 }
+    : NAME -> yy.Attr($1, yy.Nothing)
+    | NAME EQ VALUE -> yy.Attr($1, yy.Just($3))
+    | NAME EQ QUOT VALUE QUOT -> yy.Attr($1, yy.Just($4))
     ;
 
 // handlebars
@@ -167,7 +171,7 @@ openRawBlock
 
 block
   : openBlock program inverseChain? closeBlock
-    { $$.children = $2; }
+    { type: 'block', $$.children = $2; }
   | openInverse program inverseAndProgram? closeBlock -> $1
   ;
 
@@ -278,8 +282,7 @@ path
   ;
 
 pathSegments
-  : pathSegments SEP ID {
-      $1.push({part: $3, original: $3, separator: $2 }); $$ = $1;
-    }
+  : pathSegments SEP ID
+    { $1.push({part: $3, original: $3, separator: $2 }); $$ = $1; }
   | ID -> [{part: $1, original: $1}]
   ;

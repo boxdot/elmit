@@ -4,95 +4,15 @@ import String
 import Json.Decode exposing (..)
 import Result exposing (Result(..))
 
+import Types exposing (..)
 import Native.Parser
 
-
-type Element
-  = Tag TagRecord
-  | Text String
-  | Comment String
-
-
-type alias TagRecord =
-  { tag: String
-  , attrs: List Attribute
-  , children: List Element
-  }
-
-type alias Attribute =
-  { key: String
-  , value: Maybe String
-  }
-
-
-type alias TextObj = { text: String }
-type alias CommentObj = { comment: String }
-
-
-element : Decoder Element
-element =
-  oneOf
-    [ map Tag (lazy (\_ -> tag))  -- indirect recursion here
-    , map Comment comment
-    , map Text text
-    ]
-
-
-tag : Decoder TagRecord
-tag =
-  object3 TagRecord
-    ("tag" := string)
-    ("attrs" := list attribute |> maybeEmptyList)
-    ("children" := list element |> maybeEmptyList)
-
-
-text : Decoder String
-text =
-  map (\obj -> obj.text) <|
-    object1 TextObj
-      ("text" := string)
-
-
-comment : Decoder String
-comment =
-  map (\obj -> obj.comment) <|
-    object1 CommentObj
-      ("comment" := string)
-
-
-attribute : Decoder Attribute
-attribute =
-  object2 Attribute
-    ("key" := string)
-    ("value" := string |> maybe)
-
-
--- Needed to call Decoders recursively
-lazy : (() -> Decoder a) -> Decoder a
-lazy thunk =
-  customDecoder value
-    (\json -> decodeValue (thunk ()) json)
-
-
-maybeEmptyList : Decoder (List a) -> Decoder (List a)
-maybeEmptyList = maybe >> map (Maybe.withDefault [])
-
-
---attributeValue : Decoder AttributeValue
---attributeValue =
---  oneOf
---    [ map IntV int
---    , map StringV string
---    , map BoolV bool
---    ]
-
-decode : String -> Result String (List Element)
-decode x = decodeString (list element) x
+import Debug
 
 
 parse : String -> Result String (List Element)
 parse input =
-  Native.Parser.parse input `Result.andThen` decode
+  Native.Parser.parse input
 
 
 -- Compile to Elm
