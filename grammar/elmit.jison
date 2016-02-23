@@ -96,7 +96,7 @@ root
 content
     : tag -> $1
     | comment -> $1
-    | TEXT -> { text: $1.replace(/^\s+|\s+$/g, "") }
+    | TEXT -> yy.Text($1.replace(/^\s+|\s+$/g, ""))
     | statement -> { hb: $1 }
     ;
 
@@ -112,7 +112,7 @@ tag
           throw Error(
             "Non matching open and close tag: " + $1.tag + ", " + $3);
         }
-        $$ = yy.Tag($1.tag, $1.attrs, yy.Nil)
+        $$ = yy.Tag($1.tag, $1.attrs, yy.List($2))
       }
     ;
 
