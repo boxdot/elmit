@@ -22,8 +22,8 @@ build/elmit.js: build/main.js build/parser.js
 
 
 test: build/elmit.js
-	@test "`cat test/simple.html | node build/elmit.js`" \
-		= "`cat test/simple.elm`" && echo -n . || echo "Failed: simple.html"
+	@test "`cat tests/simple.html | node build/elmit.js`" \
+		= "`cat tests/simple.elm`" && echo -n . || echo "Failed: simple.html"
 	@echo
 
 
