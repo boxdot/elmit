@@ -59,12 +59,12 @@ compileTag : Int -> TagRecord -> List String
 compileTag level tag =
   let
     lines =
-      if | List.isEmpty tag.attrs && List.isEmpty tag.children ->
+      if List.isEmpty tag.attrs && List.isEmpty tag.children then
           [ tag.tag ++ " [] []" ]
-         | List.isEmpty tag.attrs ->
+      else if List.isEmpty tag.attrs then
           [ tag.tag ++ " []" ]
           ++ compileChildren (level + defaultIndent) tag.children
-         | otherwise ->
+      else
           [ tag.tag ]
           ++ compileAttrs tag.attrs
           ++ compileChildren (level + defaultIndent) tag.children
@@ -99,16 +99,16 @@ compileChildren level elements =
     indexedElements = indexedList 0 elements
     firstNonComment = findFirstNonComment indexedElements
     prepend index element =
-      if | index == 0 -> spaces ++ "[ "
-         | index <= firstNonComment ->
-          -- TODO: make simpler
-          case element of
-            Comment _ -> ""
-            _ -> spaces ++ "  "
-         | otherwise ->
-          case element of
-            Comment _ -> ""
-            _ -> spaces ++ ", "
+      if index == 0 then spaces ++ "[ "
+      else if index <= firstNonComment then
+        -- TODO: make simpler
+        case element of
+          Comment _ -> ""
+          _ -> spaces ++ "  "
+      else
+        case element of
+          Comment _ -> ""
+          _ -> spaces ++ ", "
 
     compile (index, element) =
       prepend index element

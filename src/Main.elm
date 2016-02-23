@@ -1,35 +1,17 @@
 module Main where
 
-import String
-import Task exposing (Task)
-
-import Console exposing (IO, putStrLn, putChar, exit, (>>>), getChar, (>>=),
-    forever)
-
 import Parser
 
 
-echo = forever (getChar >>= putChar)
+port stdIn : Signal String
 
 
-readStdin : IO String
-readStdin =
-  let io s = Console.getChar >>= \c ->
-    if c == '\0'
-      then Console.pure s
-      else io (String.append s (String.cons c ""))
-  in io ""
-
-
-doParse : String -> IO ()
+doParse : String -> String
 doParse input =
   case Parser.parse input of
-    Ok parsed -> putStrLn (Parser.compile parsed)
-    Err err -> putStrLn err
+    Ok parsed -> Parser.compile parsed
+    Err err -> err
 
 
-port runner : Signal (Task x ())
-port runner = Console.run <|
-  readStdin
-  >>= doParse
-  >>> exit 0
+port stdOut : Signal String
+port stdOut = Signal.map doParse stdIn

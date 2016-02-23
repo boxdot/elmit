@@ -1,0 +1,109 @@
+<div class="entry">
+  <h1>Hello {{title}}!</h1>
+  <div class="body">
+    {{body}}
+  </div>
+</div>
+
+<!--
+view title body =
+  div
+    [ class "entry" ]
+    [ h1 []
+      [ text <| "Hello " + title + "!" ]
+    , div [ class "body" ]
+        [ text "Hello" + body ]
+    ]
+-->
+
+<!-- WITH BLOCK -->
+
+<div class="entry">
+  <h1>{{title}}</h1>
+  {{#with story}}
+    <div class="intro">{{{intro}}}</div>
+    <div class="body">{{{body}}}</div>
+  {{/with}}
+</div>
+
+<!--
+view title story =
+  div [ class "entry" ]
+    [ h1 [] [ text title ]
+    , div [ class "intro" ] [ text story.intro ]
+    , div [ class "body" ] [ text story.body ]
+    ]
+-->
+
+<!-- EACH BLOCK -->
+
+<div class="comments">
+  {{#each comments}}
+    <div class="comment">
+      <h2>{{subject}}</h2>
+      {{{body}}}
+    </div>
+  {{/each}}
+</div>
+
+
+<!-- view title story comments =
+  [ div [ class "entry" ]
+    [ h1 [] [ text title ]
+    , div [ class "intro" ] [ text story.intro ]
+    , div [ class "body" ] [ text story.body ]
+    ]
+    , div [ class "comments" ]
+      <| (flip List.map) comments
+      <| \comment ->
+        div [ class "comments" ]
+          [ h2 [] [ text comment.subject ]
+          , text comment.body
+          ]
+  ]
+-->
+
+
+<!-- IF BLOCK -->
+
+{{#if isActive}}
+  <img src="star.gif" alt="Active">
+{{/if}}
+
+<!--
+view isActive =
+  if isActive then
+    [ img [ src "star.gif", alt "Active" ] [] ]
+  else
+    []
+-->
+
+{{#if isActive}}
+  <img src="star.gif" alt="Active">
+{{else}}
+  <img src="cry.gif" alt="Inactive">
+{{/if}}
+
+<!--
+view isActive =
+  if isActive then
+    img [ src "star.gif", alt "Active" ] []
+  else
+    img [ src "cry.fig", alt "Inactive" ] []
+-->
+
+{{#if isActive}}
+  <img src="star.gif" alt="Active">
+{{else if isInactive}}
+  <img src="cry.gif" alt="Inactive">
+{{/if}}
+
+<!--
+view isActive isInactive =
+  if | isActive ->
+    [ img [ src "star.gif", alt "Active" ] [] ]
+     | isInactive ->
+    [ img [ src "cry.fig", alt "Inactive" ] [] ]
+     | otherwise ->
+    []
+-->

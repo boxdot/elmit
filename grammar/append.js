@@ -30,7 +30,7 @@ Elm.Native.Parser.make = function(localRuntime) {
     function parse(input) {
         try {
             var parsed = parser.parse(input);
-            Debug.log.func("parsed", parsed);
+            // Debug.log.func("parsed", parsed);
             return Result.Ok(parsed);
         } catch (err) {
             return Result.Err(err.toString());

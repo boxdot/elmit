@@ -1,0 +1,26 @@
+<div class="entry">
+  <h1>Hello {{title}}!</h1>
+  <div class="body">
+    {{body}}
+  </div>
+  <div>And this is {{some.record.value}}!</div>
+  <button/>
+</div>
+
+<!-- view title body events =
+  div
+    [ class "entry" ]
+    [ h1 []
+      [ text <| "Hello " + title + "!" ]
+    , div [ class "body" ]
+        [ text "Hello" + body ]
+    ]
+ -->
+
+<div class="entry">
+  <h1>{{title}}</h1>
+  {{#with story}}
+    <div class="intro">{{{intro}}}</div>
+    <div class="body">{{{body}}}</div>
+  {{/with}}
+</div>
